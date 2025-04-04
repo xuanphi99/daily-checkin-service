@@ -43,10 +43,9 @@ Hệ thống backend cho tính năng "Điểm danh hàng ngày" của ứng dụ
 
 ## 🧰 Tech Stack
 
-- 💻 **Java 17**, **Spring Boot 3.x**
+- 💻 **Java 8**, **Spring Boot 2.x**
 - 🐘 **PostgresSQL**
 - ⚡ **Redis** (Redisson client)
-- 🔐 Spring Security (nếu mở rộng xác thực người dùng)
 - 📘 JPA / Hibernate
 - 📦 Gradle
 
