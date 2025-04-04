@@ -1,4 +1,4 @@
-package com.wiinvent.lotus.checkin.checkin;
+package com.wiinvent.lotus.checkin;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
