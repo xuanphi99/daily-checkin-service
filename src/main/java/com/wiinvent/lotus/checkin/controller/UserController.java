@@ -1,11 +1,15 @@
 package com.wiinvent.lotus.checkin.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wiinvent.lotus.checkin.dto.UserDto;
-import com.wiinvent.lotus.checkin.mapper.UserMapper;
 import com.wiinvent.lotus.checkin.service.UserService;
+import com.wiinvent.lotus.checkin.util.LocaleKey;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.Locale;
 
 @RestController
@@ -14,20 +18,45 @@ public class UserController {
 
     private final UserService userService;
 
-    public UserController(UserService userService) {
+    private final ObjectMapper objectMapper;
+
+    public UserController(UserService userService, ObjectMapper objectMapper) {
         this.userService = userService;
+        this.objectMapper = objectMapper;
     }
 
     @PostMapping
-    public ResponseEntity<UserDto> createUser(@RequestBody UserDto userDto) {
+    public ResponseEntity<UserDto> createUser(@RequestPart("user") String  userJson,
+                                              @RequestPart("avatar") MultipartFile avatar) throws IOException {
+        UserDto userDto = objectMapper.readValue(userJson, UserDto.class);
+
+        if(avatar!= null && !avatar.isEmpty()) {
+            byte[] avatarBytes = avatar.getBytes();
+            userDto.setAvatar(avatarBytes);
+        }
         UserDto savedUser = userService.createUser(userDto);
-        return ResponseEntity.ok(savedUser);
+        return ResponseEntity.status(HttpStatus.CREATED).body(savedUser);
     }
 
     @GetMapping("/{userId}")
-    public  ResponseEntity<?> getUserById(@RequestHeader(value = "Accept-Language", defaultValue = "vi") String lang,
-                                   @PathVariable long userId) {
+    public ResponseEntity<?> getUserById(@RequestHeader(value = "Accept-Language", defaultValue = "vi") String lang,
+                                         @PathVariable long userId) {
         Locale locale = new Locale(lang);
-        return userService.getUserById(userId,locale);
+        return userService.getUserById(userId, locale);
     }
+
+    @PostMapping("/check-in/{userId}")
+    public ResponseEntity<String> checkIn(@RequestHeader(value = "Accept-Language", defaultValue = "vi") String lang,
+                                          @PathVariable long userId) {
+        try {
+            Locale locale = new Locale(lang);
+
+            userService.checkInByUserId(userId,locale);
+            return ResponseEntity.ok(LocaleKey.CHECK_IN_SUCCESS);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+
 }

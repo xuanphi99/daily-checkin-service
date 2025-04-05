@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+    <!-- ChangeSet to create table 'reward_config' if it doesn't exist -->
+    <changeSet id="create_reward_config_3" author="phidx" runOnChange="true" runAlways="false">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="reward_config"/>
+            </not>
+        </preConditions>
+
+        <createTable tableName="reward_config">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="day_number" type="INT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="points" type="INT">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <!-- ChangeSet to insert data into 'reward_config' table -->
+    <changeSet id="insert_reward_config_3" author="phidx" runOnChange="true" runAlways="false">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM reward_config;
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="reward_config">
+            <column name="day_number" value="1"/>
+            <column name="points" value="1"/>
+        </insert>
+        <insert tableName="reward_config">
+            <column name="day_number" value="2"/>
+            <column name="points" value="2"/>
+        </insert>
+        <insert tableName="reward_config">
+            <column name="day_number" value="3"/>
+            <column name="points" value="3"/>
+        </insert>
+        <insert tableName="reward_config">
+            <column name="day_number" value="4"/>
+            <column name="points" value="5"/>
+        </insert>
+        <insert tableName="reward_config">
+            <column name="day_number" value="5"/>
+            <column name="points" value="8"/>
+        </insert>
+        <insert tableName="reward_config">
+            <column name="day_number" value="6"/>
+            <column name="points" value="13"/>
+        </insert>
+        <insert tableName="reward_config">
+            <column name="day_number" value="7"/>
+            <column name="points" value="21"/>
+        </insert>
+    </changeSet>
+
+</databaseChangeLog>

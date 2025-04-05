@@ -1,14 +1,16 @@
 package com.wiinvent.lotus.checkin.dto;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.*;
 
-@Getter
-@Setter
+@Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class UserDto {
     private long id;
     private String name;
+    private byte[] avatar ;
+
+    @JsonProperty(value = "lotusPoints", access = JsonProperty.Access.READ_ONLY)
+    private double lotusPoints;
 }
