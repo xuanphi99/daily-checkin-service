@@ -58,6 +58,9 @@ Hệ thống backend cho tính năng "Điểm danh hàng ngày" của ứng dụ
 git clone https://github.com/xuanphi99/daily-checkin-service/
 cd checkin-service
 
+Trước khi chạy ứng dụng, hãy tạo schema trong MySQL bằng câu lệnh:  
+
+<pre> ```sql CREATE DATABASE lotus_checkin CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; ``` </pre>
 # Cấu hình DB & Redis trong file application.yml
 
 # Build project với Gradle wrapper
