@@ -2,6 +2,8 @@ package com.wiinvent.lotus.checkin.dto;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.*;
 
+import java.util.List;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -13,4 +15,6 @@ public class UserDto {
 
     @JsonProperty(value = "lotusPoints", access = JsonProperty.Access.READ_ONLY)
     private double lotusPoints;
+
+    private List<CheckInHistoryDto> historyDto;
 }

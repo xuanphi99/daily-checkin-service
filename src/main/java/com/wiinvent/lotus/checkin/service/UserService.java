@@ -1,5 +1,6 @@
 package com.wiinvent.lotus.checkin.service;
 
+import com.wiinvent.lotus.checkin.dto.CheckInHistoryDto;
 import com.wiinvent.lotus.checkin.dto.UserDto;
 import com.wiinvent.lotus.checkin.entity.CheckInHistoryEntity;
 import com.wiinvent.lotus.checkin.entity.UserEntity;
@@ -20,8 +21,11 @@ import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAdjusters;
 import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 public class UserService {
@@ -58,9 +62,16 @@ public class UserService {
     }
 
     public ResponseEntity<?> getUserById(long userId, Locale locale) {
+        RBucket<UserDto> userBucket = redissonClient.getBucket(CacheKeys.USER_PROFILE.buildKey(userId));
+        UserDto userDto = userBucket.get();
+        if (userDto != null) {
+            return ResponseEntity.ok(userDto);
+        }
         Optional<UserEntity> userEntity = userRepository.findById(userId);
         if (userEntity.isPresent()) {
-            return ResponseEntity.ok(userMapper.toDto(userEntity.get()));
+            UserDto dto= userMapper.toDto(userEntity.get());
+            setCacheUserProfile(userBucket, dto);
+            return ResponseEntity.ok(dto);
         }
         String message = messageSource.getMessage(LocaleKey.USER_NOT_FOUND, null, locale);
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(message);
@@ -90,7 +101,8 @@ public class UserService {
                     new RuntimeException(messageSource.getMessage(LocaleKey.USER_NOT_FOUND, null, locale)));
 
             List<CheckInHistoryEntity> turnInMonth =  checkInHistoryRepository
-                    .findByCheckInDateGreaterThanEqualAndCheckInDateLessThanEqual(
+                    .findByUserIdAndCheckInDateGreaterThanEqualAndCheckInDateLessThanEqual(
+                            userId,
                             dateCheckIn.withDayOfMonth(1),
                             dateCheckIn.with(TemporalAdjusters.lastDayOfMonth()));
 
@@ -99,8 +111,11 @@ public class UserService {
             if (turnInMonth.size() > rewardConfigs.size()) {
                 throw new RuntimeException(messageSource.getMessage(LocaleKey.USER_EXCEEDED_CHECK_INS, null, locale));
             }
-            userEntity.setLotusPoints(userEntity.getLotusPoints() + rewardConfigs.getOrDefault(turnInMonth.size() + 1,0));
+            userEntity.setLotusPoints(userEntity.getLotusPoints() + 
+                    rewardConfigs.getOrDefault(turnInMonth.size() + 1,0));
             userRepository.save(userEntity);
+            setCacheUserProfile(redissonClient.getBucket(CacheKeys.USER_PROFILE.buildKey(userId)),
+                    userMapper.toDto(userEntity));
 
             CheckInHistoryEntity checkInHistoryEntity = new CheckInHistoryEntity();
             checkInHistoryEntity.setUserId(userId);
@@ -118,8 +133,30 @@ public class UserService {
 
     }
 
+    public List<CheckInHistoryDto> getCheckInStatusById(long userId, LocalDate startDate,
+                                                              LocalDate endDate) {
+        List<CheckInHistoryEntity> checkInHistoryEntities = checkInHistoryRepository
+                .findByUserIdAndCheckInDateGreaterThanEqualAndCheckInDateLessThanEqual(userId,startDate,endDate);
+        Set<LocalDate> checkInDates = checkInHistoryEntities.stream()
+                .map(CheckInHistoryEntity::getCheckInDate)
+                .collect(Collectors.toSet());
+
+        return Stream.iterate(startDate, date -> date.plusDays(1))
+                .limit(ChronoUnit.DAYS.between(startDate, endDate) + 1)
+                .map(currentDate -> CheckInHistoryDto.builder()
+                        .checkInDate(currentDate)
+                        .isCheckedIn(checkInDates.contains(currentDate))
+                        .build())
+                .collect(Collectors.toList());
+
+    }
     private void addCacheCheckInBucket(long userId, RBucket<String> checkInBucket) {
         checkInBucket.set(CacheKeys.USER_CHECK_IN.buildKey(userId));
         checkInBucket.expire(checkInValidateHelper.getExpiryTime().toInstant());
+    }
+
+    private void setCacheUserProfile(RBucket<UserDto> userBucket, UserDto dto) {
+        userBucket.set(dto);
+        userBucket.expire(checkInValidateHelper.getExpiryTime().toInstant());
     }
 }
