@@ -1,15 +1,19 @@
 package com.wiinvent.lotus.checkin.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.wiinvent.lotus.checkin.dto.CheckInHistoryDto;
 import com.wiinvent.lotus.checkin.dto.UserDto;
 import com.wiinvent.lotus.checkin.service.UserService;
 import com.wiinvent.lotus.checkin.util.LocaleKey;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.time.LocalDate;
+import java.util.List;
 import java.util.Locale;
 
 @RestController
@@ -26,11 +30,11 @@ public class UserController {
     }
 
     @PostMapping
-    public ResponseEntity<UserDto> createUser(@RequestPart("user") String  userJson,
+    public ResponseEntity<UserDto> createUser(@RequestPart("user") String userJson,
                                               @RequestPart("avatar") MultipartFile avatar) throws IOException {
         UserDto userDto = objectMapper.readValue(userJson, UserDto.class);
 
-        if(avatar!= null && !avatar.isEmpty()) {
+        if (avatar != null && !avatar.isEmpty()) {
             byte[] avatarBytes = avatar.getBytes();
             userDto.setAvatar(avatarBytes);
         }
@@ -51,12 +55,18 @@ public class UserController {
         try {
             Locale locale = new Locale(lang);
 
-            userService.checkInByUserId(userId,locale);
+            userService.checkInByUserId(userId, locale);
             return ResponseEntity.ok(LocaleKey.CHECK_IN_SUCCESS);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
 
+    @GetMapping("/check-in-status/{userId}")
+    public List<CheckInHistoryDto> getCheckInStatus(@PathVariable long userId,
+                                                    @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate startDate,
+                                                    @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate endDate) {
+        return userService.getCheckInStatusById(userId, startDate, endDate);
+    }
 
 }

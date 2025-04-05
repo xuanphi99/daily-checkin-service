@@ -7,11 +7,14 @@ import org.springframework.stereotype.Repository;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+
 @Repository
 public interface CheckInHistoryRepository extends JpaRepository<CheckInHistoryEntity, Long> {
 
     Optional<CheckInHistoryEntity> findByUserIdAndCheckInDate(long userId, LocalDate checkInDate);
 
-    List<CheckInHistoryEntity> findByCheckInDateGreaterThanEqualAndCheckInDateLessThanEqual(LocalDate startDate, LocalDate endDate);
+    List<CheckInHistoryEntity> findByUserIdAndCheckInDateGreaterThanEqualAndCheckInDateLessThanEqual(long userId,
+                                                                                                     LocalDate startDate,
+                                                                                                     LocalDate endDate);
 
 }
