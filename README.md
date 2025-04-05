@@ -58,8 +58,6 @@ Hệ thống backend cho tính năng "Điểm danh hàng ngày" của ứng dụ
 git clone https://github.com/xuanphi99/daily-checkin-service/
 cd checkin-service
 
-# Cấu hình DB & Redis trong file application.yml
-
 # Build project với Gradle wrapper
 ./gradlew build
 
