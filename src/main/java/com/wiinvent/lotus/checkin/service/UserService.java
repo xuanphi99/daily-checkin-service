@@ -72,22 +72,22 @@ public class UserService {
         RBucket<String> checkInBucket = redissonClient.getBucket(CacheKeys.USER_CHECK_IN.buildKey(userId));
 
         if (!checkInValidateHelper.isTimeInRange()) {
-            throw new Exception("Invalid check-in time");
+            throw new Exception(messageSource.getMessage(LocaleKey.INVALID_CHECK_IN_TIME, null, locale));
         }
 
         else if (checkInBucket.isExists()) {
-            throw new Exception("Check-in already marked today (from Redis)");
+            throw new Exception(messageSource.getMessage(LocaleKey.CHECK_IN_ALREADY_MARKED_TODAY, null, locale));
         }
 
         else if (checkInHistoryRepository.findByUserIdAndCheckInDate(userId, dateCheckIn).isPresent()) {
             addCacheCheckInBucket(userId, checkInBucket);
-            throw new Exception("Check-in already marked today (from DB)");
+            throw new Exception(messageSource.getMessage(LocaleKey.CHECK_IN_ALREADY_MARKED_TODAY, null, locale));
         }
 
         try {
 
             UserEntity userEntity = userRepository.findById(userId).orElseThrow(() ->
-                    new RuntimeException("User not found"));
+                    new RuntimeException(messageSource.getMessage(LocaleKey.USER_NOT_FOUND, null, locale)));
 
             List<CheckInHistoryEntity> turnInMonth =  checkInHistoryRepository
                     .findByCheckInDateGreaterThanEqualAndCheckInDateLessThanEqual(
@@ -97,7 +97,7 @@ public class UserService {
             HashMap<Integer,Integer> rewardConfigs  = rewardConfigService.findAllConfig();
 
             if (turnInMonth.size() > rewardConfigs.size()) {
-                throw new RuntimeException("User has exceeded the allowed number of check-ins for this month.");
+                throw new RuntimeException(messageSource.getMessage(LocaleKey.USER_EXCEEDED_CHECK_INS, null, locale));
             }
             userEntity.setLotusPoints(userEntity.getLotusPoints() + rewardConfigs.getOrDefault(turnInMonth.size() + 1,0));
             userRepository.save(userEntity);
