@@ -10,14 +10,14 @@ Hệ thống backend cho tính năng "Điểm danh hàng ngày" của ứng dụ
 
 ## 🚀 Tính năng chính
 
-| API                       | Mô tả |
-|---------------------------|------|
-| `POST /api/v1/users`      | Tạo người dùng mới |
-| `GET /api/v1/users/{id}`     | Lấy thông tin người dùng |
-| `GET /api/v1/checkin/status` | Lấy danh sách trạng thái điểm danh trong tháng |
-| `POST /api/v1/checkin`       | Điểm danh hàng ngày (có kiểm tra giờ và lock Redis) |
-| `GET /api/v1/points/history` | Lấy lịch sử cộng điểm (hỗ trợ phân trang) |
-| `POST /api/v1/points/deduct` | API trừ điểm |
+| API                           | Mô tả |
+|-------------------------------|------|
+| `POST /api/v1/users`          | Tạo người dùng mới |
+| `GET /api/v1/users/{id}`      | Lấy thông tin người dùng |
+| `GET /api/v1/check-in/status` | Lấy danh sách trạng thái điểm danh trong tháng |
+| `POST /api/v1/checkin`        | Điểm danh hàng ngày (có kiểm tra giờ và lock Redis) |
+| `GET /api/v1/points/history`  | Lấy lịch sử cộng điểm (hỗ trợ phân trang) |
+| `POST /api/v1/points/deduct`  | API trừ điểm |
 
 ---
 
