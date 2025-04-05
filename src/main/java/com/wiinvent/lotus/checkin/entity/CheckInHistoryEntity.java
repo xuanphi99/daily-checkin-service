@@ -5,7 +5,6 @@ import lombok.Setter;
 
 import javax.persistence.*;
 import java.time.LocalDate;
-import java.util.Date;
 
 @Entity
 @Table(name = "check_in_history")
@@ -19,7 +18,7 @@ public class CheckInHistoryEntity extends BaseEntity {
     @Column(name = "user_id", columnDefinition = "BIGINT COMMENT 'User ID (foreign key handled at service layer)'")
     private long userId;
 
-    @Column(name = "check_in_date" , columnDefinition = "DATE COMMENT 'Check-in date (yyyy-MM-dd)'")
+    @Column(name = "check_in_date" , columnDefinition = "DATE COMMENT 'Check-in date '")
     private LocalDate checkInDate;
 
     @Column(name = "amount" , columnDefinition = "INT COMMENT 'amount added or deducted'")
