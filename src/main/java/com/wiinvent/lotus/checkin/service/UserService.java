@@ -21,10 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.temporal.TemporalAdjusters;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Optional;
+import java.util.*;
 
 @Service
 public class UserService {
@@ -82,7 +79,8 @@ public class UserService {
             throw new Exception("Check-in already marked today (from Redis)");
         }
 
-        else if (!checkInHistoryRepository.findByUserIdAndCheckInDate(userId, dateCheckIn).isPresent()) {
+        else if (checkInHistoryRepository.findByUserIdAndCheckInDate(userId, dateCheckIn).isPresent()) {
+            addCacheCheckInBucket(userId, checkInBucket);
             throw new Exception("Check-in already marked today (from DB)");
         }
 
@@ -98,27 +96,30 @@ public class UserService {
 
             HashMap<Integer,Integer> rewardConfigs  = rewardConfigService.findAllConfig();
 
-            if (turnInMonth.size() > 7) {
+            if (turnInMonth.size() > rewardConfigs.size()) {
                 throw new RuntimeException("User has exceeded the allowed number of check-ins for this month.");
             }
-
-            userEntity.setLotusPoints(userEntity.getLotusPoints() + rewardConfigs.getOrDefault(turnInMonth.size(),0));
+            userEntity.setLotusPoints(userEntity.getLotusPoints() + rewardConfigs.getOrDefault(turnInMonth.size() + 1,0));
             userRepository.save(userEntity);
 
             CheckInHistoryEntity checkInHistoryEntity = new CheckInHistoryEntity();
             checkInHistoryEntity.setUserId(userId);
-            checkInHistoryEntity.setAmount(rewardConfigs.getOrDefault(turnInMonth.size(),0));
+            checkInHistoryEntity.setAmount(rewardConfigs.getOrDefault(turnInMonth.size() + 1,0));
             checkInHistoryEntity.setCheckInDate(dateCheckIn);
             checkInHistoryEntity.setReason(ReasonCheckInEnum.check_in.name());
             checkInHistoryRepository.save(checkInHistoryEntity);
 
-            checkInBucket.set(CacheKeys.USER_CHECK_IN.buildKey(userId));
-            checkInBucket.expire(checkInValidateHelper.getExpiryTime().toInstant());
+            addCacheCheckInBucket(userId, checkInBucket);
 
         } catch (Exception e) {
             checkInBucket.delete();
             throw e;
         }
 
+    }
+
+    private void addCacheCheckInBucket(long userId, RBucket<String> checkInBucket) {
+        checkInBucket.set(CacheKeys.USER_CHECK_IN.buildKey(userId));
+        checkInBucket.expire(checkInValidateHelper.getExpiryTime().toInstant());
     }
 }
