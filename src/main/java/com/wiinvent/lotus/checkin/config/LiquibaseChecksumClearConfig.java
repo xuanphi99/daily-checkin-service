@@ -1,4 +1,4 @@
-package com.wiinvent.lotus.checkin.entity;
+package com.wiinvent.lotus.checkin.config;
 
 import liquibase.Liquibase;
 import liquibase.database.Database;
