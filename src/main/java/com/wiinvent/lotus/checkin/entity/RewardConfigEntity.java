@@ -6,7 +6,9 @@ import javax.persistence.*;
 
 @Entity
 @Getter
-@Table(name = "reward_config")
+@Table(name = "reward_config", indexes = {
+        @Index(name = "idx_day_number", columnList = "day_number")
+})
 public class RewardConfigEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

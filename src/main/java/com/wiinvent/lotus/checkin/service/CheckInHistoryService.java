@@ -26,7 +26,7 @@ public class CheckInHistoryService {
     }
 
     public Page<CheckInHistoryDto> getCheckInHistory(long userId, int page, int size) {
-        Pageable pageable = PageRequest.of(page, size);
+        Pageable pageable = PageRequest.of(Math.max(page, 0), Math.max(1,size));
 
         Page<CheckInHistoryEntity> entityPage = checkInHistoryRepository
                 .findByUserIdAndReason(userId, ReasonCheckInEnum.check_in.name(), pageable);

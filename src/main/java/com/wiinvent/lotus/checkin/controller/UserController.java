@@ -82,4 +82,17 @@ public class UserController {
         return checkInHistoryService.getCheckInHistory(userId, page, size);
     }
 
+    @PostMapping("/points/deduct/{userId}")
+    public ResponseEntity<String> deduct(@RequestHeader(value = "Accept-Language", defaultValue = "vi") String lang,
+                                          @PathVariable long userId,
+                                          @RequestBody CheckInHistoryDto checkInHistoryDto) {
+        try {
+            Locale locale = new Locale(lang);
+            userService.subtractPoints(userId, checkInHistoryDto,locale);
+            return ResponseEntity.ok(LocaleKey.SUBTRACT_POINT_SUCCESS);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
 }

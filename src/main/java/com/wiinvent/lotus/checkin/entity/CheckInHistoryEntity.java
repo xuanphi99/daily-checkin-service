@@ -7,7 +7,10 @@ import javax.persistence.*;
 import java.time.LocalDate;
 
 @Entity
-@Table(name = "check_in_history")
+@Table(name = "check_in_history", indexes = {
+        @Index(name = "idx_user_id_check_in_date", columnList = "user_id, check_in_date"),
+        @Index(name = "idx_user_id_check_in_date_reason", columnList = "user_id, check_in_date,reason"),
+})
 @Getter
 @Setter
 public class CheckInHistoryEntity extends BaseEntity {
