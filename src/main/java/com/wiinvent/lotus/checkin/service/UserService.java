@@ -82,24 +82,16 @@ public class UserService {
         LocalDate dateCheckIn = LocalDate.now();
         RBucket<String> checkInBucket = redissonClient.getBucket(CacheKeys.USER_CHECK_IN.buildKey(userId));
 
-        if (!checkInValidateHelper.isTimeInRange()) {
-            throw new Exception(messageSource.getMessage(LocaleKey.INVALID_CHECK_IN_TIME, null, locale));
-        } else if (checkInBucket.isExists()) {
-            throw new Exception(messageSource.getMessage(LocaleKey.CHECK_IN_ALREADY_MARKED_TODAY, null, locale));
-        } else if (checkInHistoryRepository.findByUserIdAndCheckInDate(userId, dateCheckIn).isPresent()) {
-            addCacheCheckInBucket(userId, checkInBucket);
-            throw new Exception(messageSource.getMessage(LocaleKey.CHECK_IN_ALREADY_MARKED_TODAY, null, locale));
-        }
+        validateCheckIn(userId, locale, dateCheckIn, checkInBucket);
 
         try {
 
-            UserEntity userEntity = userRepository.findById(userId).orElseThrow(() ->
-                    new RuntimeException(messageSource.getMessage(LocaleKey.USER_NOT_FOUND, null, locale)));
+            UserEntity userEntity = getUserEntity(userId,locale);
 
-            List<CheckInHistoryEntity> turnInMonth = checkInHistoryRepository
-                    .findByUserIdAndReasonAndCheckInDateGreaterThanEqualAndCheckInDateLessThanEqual(
-                            userId, ReasonCheckInEnum.check_in.name(),
-                            dateCheckIn.withDayOfMonth(1), dateCheckIn.with(TemporalAdjusters.lastDayOfMonth()));
+            List<CheckInHistoryEntity> turnInMonth = getCheckInByDateRange(userId,
+                    dateCheckIn.withDayOfMonth(1),
+                    dateCheckIn.with(TemporalAdjusters.lastDayOfMonth()),
+                    ReasonCheckInEnum.check_in.name());
 
             HashMap<Integer, Integer> rewardConfigs = rewardConfigService.findAllConfig();
 
@@ -128,13 +120,47 @@ public class UserService {
 
     }
 
+    private List<CheckInHistoryEntity> getCheckInByDateRange(long userId,
+                                                             LocalDate startDate,
+                                                             LocalDate endDate,String reason) {
+        String cacheKeyDateRange = String.format("checkInRange:%d:%s:%s:%s",
+                userId, ReasonCheckInEnum.check_in.name(),
+                startDate,
+                endDate);
+
+        RBucket<List<CheckInHistoryEntity>> bucket = redissonClient.getBucket(cacheKeyDateRange);
+
+        if (bucket.isExists()) {
+            return bucket.get();
+        }
+
+        List<CheckInHistoryEntity> result = checkInHistoryRepository
+                .findByUserIdAndReasonAndCheckInDateGreaterThanEqualAndCheckInDateLessThanEqual(
+                        userId, reason, startDate, endDate);
+
+        bucket.set(result);
+        bucket.expire(checkInValidateHelper.getExpiryTime().toInstant());
+
+        return result;
+    }
+
+    private void validateCheckIn(long userId, Locale locale, LocalDate dateCheckIn, RBucket<String> checkInBucket) throws Exception {
+        if (!checkInValidateHelper.isTimeInRange()) {
+            throw new Exception(messageSource.getMessage(LocaleKey.INVALID_CHECK_IN_TIME, null, locale));
+        }
+        if (checkInBucket.isExists() || checkInHistoryRepository.findByUserIdAndCheckInDate(userId, dateCheckIn).isPresent()) {
+            if(!checkInBucket.isExists()){
+                addCacheCheckInBucket(userId, checkInBucket);
+            }
+            throw new Exception(messageSource.getMessage(LocaleKey.CHECK_IN_ALREADY_MARKED_TODAY, null, locale));
+        }
+    }
+
     public List<CheckInHistoryDto> getCheckInStatusById(long userId, LocalDate startDate,
                                                         LocalDate endDate) {
-        List<CheckInHistoryEntity> checkInHistoryEntities = checkInHistoryRepository
-                .findByUserIdAndReasonAndCheckInDateGreaterThanEqualAndCheckInDateLessThanEqual(userId,
-                        ReasonCheckInEnum.check_in.name(),
-                        startDate,
-                        endDate);
+
+        List<CheckInHistoryEntity> checkInHistoryEntities =
+                getCheckInByDateRange(userId,startDate,endDate,ReasonCheckInEnum.check_in.name());
 
         Set<LocalDate> checkInDates = checkInHistoryEntities.stream()
                 .map(CheckInHistoryEntity::getCheckInDate)
@@ -151,8 +177,7 @@ public class UserService {
     }
 
     public void subtractPoints(long userId, CheckInHistoryDto checkInHistoryDto, Locale locale) {
-        UserEntity userEntity = userRepository.findById(userId).orElseThrow(() ->
-                new RuntimeException(messageSource.getMessage(LocaleKey.USER_NOT_FOUND, null, locale)));
+        UserEntity userEntity = getUserEntity(userId,locale);
 
         userEntity.setLotusPoints(userEntity.getLotusPoints() + checkInHistoryDto.getAmount());
         userRepository.save(userEntity);
@@ -177,5 +202,10 @@ public class UserService {
     private void setCacheUserProfile(RBucket<UserDto> userBucket, UserDto dto) {
         userBucket.set(dto);
         userBucket.expire(checkInValidateHelper.getExpiryTime().toInstant());
+    }
+
+    private UserEntity getUserEntity(long userId, Locale locale) throws RuntimeException {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException(messageSource.getMessage(LocaleKey.USER_NOT_FOUND, null, locale)));
     }
 }
