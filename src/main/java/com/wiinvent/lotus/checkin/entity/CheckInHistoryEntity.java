@@ -1,5 +1,6 @@
 package com.wiinvent.lotus.checkin.entity;
 
+import com.wiinvent.lotus.checkin.lisener.CheckInHistoryListener;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -7,6 +8,7 @@ import javax.persistence.*;
 import java.time.LocalDate;
 
 @Entity
+@EntityListeners(CheckInHistoryListener.class)
 @Table(name = "check_in_history", indexes = {
         @Index(name = "idx_user_id_check_in_date", columnList = "user_id, check_in_date"),
         @Index(name = "idx_user_id_check_in_date_reason", columnList = "user_id, check_in_date,reason"),
