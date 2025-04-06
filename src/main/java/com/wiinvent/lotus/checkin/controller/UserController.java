@@ -6,6 +6,7 @@ import com.wiinvent.lotus.checkin.dto.UserDto;
 import com.wiinvent.lotus.checkin.service.CheckInHistoryService;
 import com.wiinvent.lotus.checkin.service.UserService;
 import com.wiinvent.lotus.checkin.util.LocaleKey;
+import org.springframework.context.MessageSource;
 import org.springframework.data.domain.Page;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -13,7 +14,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
@@ -28,18 +28,30 @@ public class UserController {
 
     private final CheckInHistoryService checkInHistoryService;
 
-    public UserController(UserService userService, ObjectMapper objectMapper, CheckInHistoryService checkInHistoryService) {
+    private final MessageSource messageSource;
+
+    public UserController(UserService userService,
+                          ObjectMapper objectMapper,
+                          CheckInHistoryService checkInHistoryService,
+                          MessageSource messageSource) {
         this.userService = userService;
         this.objectMapper = objectMapper;
         this.checkInHistoryService = checkInHistoryService;
+        this.messageSource = messageSource;
     }
 
     @PostMapping
     public ResponseEntity<UserDto> createUser(@RequestPart("user") String userJson,
-                                              @RequestPart("avatar") MultipartFile avatar) throws IOException {
+                                              @RequestPart(value = "avatar" ,required = false) MultipartFile avatar,
+                                              @RequestHeader(value = "Accept-Language", defaultValue = "vi") String lang) throws Exception {
         UserDto userDto = objectMapper.readValue(userJson, UserDto.class);
+        Locale locale = new Locale(lang);
 
         if (avatar != null && !avatar.isEmpty()) {
+            String contentType = avatar.getContentType();
+            if (contentType == null || !contentType.startsWith("image/")) {
+                throw new Exception(messageSource.getMessage(LocaleKey.FILE_AVATAR_INVALID,null,locale));
+            }
             byte[] avatarBytes = avatar.getBytes();
             userDto.setAvatar(avatarBytes);
         }
@@ -61,7 +73,7 @@ public class UserController {
             Locale locale = new Locale(lang);
 
             userService.checkInByUserId(userId, locale);
-            return ResponseEntity.ok(LocaleKey.CHECK_IN_SUCCESS);
+            return ResponseEntity.ok(messageSource.getMessage(LocaleKey.CHECK_IN_SUCCESS,null,locale));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
@@ -89,7 +101,7 @@ public class UserController {
         try {
             Locale locale = new Locale(lang);
             userService.subtractPoints(userId, checkInHistoryDto,locale);
-            return ResponseEntity.ok(LocaleKey.SUBTRACT_POINT_SUCCESS);
+            return ResponseEntity.ok(messageSource.getMessage(LocaleKey.SUBTRACT_POINT_SUCCESS,null,locale));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }

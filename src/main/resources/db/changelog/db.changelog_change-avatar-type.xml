@@ -4,7 +4,11 @@
         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
-
-    <include file="db/changelog/db.changelog_insert_reward_config.xml" />
-    <include file="db/changelog/db.changelog_change-avatar-type.xml" />
+    <changeSet id="20250406-01-change-avatar-to-longblob" author="phidx">
+        <modifyDataType
+                tableName="user"
+                columnName="avatar"
+                newDataType="LONGBLOB"/>
+        <comment>Change avatar column to LONGBLOB to support larger image data</comment>
+    </changeSet>
 </databaseChangeLog>

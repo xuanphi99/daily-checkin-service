@@ -8,4 +8,5 @@ public class LocaleKey {
     public static final String CHECK_IN_ALREADY_MARKED_TODAY = "check.in.already.marked.today";
     public static final String SUBTRACT_POINT_SUCCESS = "subtract.point.success";
     public static final String CHECK_IN_LOCK_FAILED = "check.in.lock.failed";
+    public static final String FILE_AVATAR_INVALID = "file.avatar.invalid";
 }
