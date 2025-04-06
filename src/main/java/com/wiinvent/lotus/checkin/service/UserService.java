@@ -160,8 +160,9 @@ public class UserService {
                                                         LocalDate endDate) {
 
         List<CheckInHistoryEntity> checkInHistoryEntities =
-                getCheckInByDateRange(userId,startDate,endDate,ReasonCheckInEnum.check_in.name());
-
+                checkInHistoryRepository
+                        .findByUserIdAndReasonAndCheckInDateGreaterThanEqualAndCheckInDateLessThanEqual(
+                                userId, ReasonCheckInEnum.check_in.name(), startDate, endDate);
         Set<LocalDate> checkInDates = checkInHistoryEntities.stream()
                 .map(CheckInHistoryEntity::getCheckInDate)
                 .collect(Collectors.toSet());
