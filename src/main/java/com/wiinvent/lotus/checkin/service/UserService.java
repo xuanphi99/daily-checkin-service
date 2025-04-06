@@ -101,10 +101,9 @@ public class UserService {
                     new RuntimeException(messageSource.getMessage(LocaleKey.USER_NOT_FOUND, null, locale)));
 
             List<CheckInHistoryEntity> turnInMonth =  checkInHistoryRepository
-                    .findByUserIdAndCheckInDateGreaterThanEqualAndCheckInDateLessThanEqual(
-                            userId,
-                            dateCheckIn.withDayOfMonth(1),
-                            dateCheckIn.with(TemporalAdjusters.lastDayOfMonth()));
+                    .findByUserIdAndReasonAndCheckInDateGreaterThanEqualAndCheckInDateLessThanEqual(
+                            userId, ReasonCheckInEnum.check_in.name(),
+                            dateCheckIn.withDayOfMonth(1), dateCheckIn.with(TemporalAdjusters.lastDayOfMonth()));
 
             HashMap<Integer,Integer> rewardConfigs  = rewardConfigService.findAllConfig();
 
@@ -136,7 +135,11 @@ public class UserService {
     public List<CheckInHistoryDto> getCheckInStatusById(long userId, LocalDate startDate,
                                                               LocalDate endDate) {
         List<CheckInHistoryEntity> checkInHistoryEntities = checkInHistoryRepository
-                .findByUserIdAndCheckInDateGreaterThanEqualAndCheckInDateLessThanEqual(userId,startDate,endDate);
+                .findByUserIdAndReasonAndCheckInDateGreaterThanEqualAndCheckInDateLessThanEqual(userId,
+                        ReasonCheckInEnum.check_in.name(),
+                        startDate,
+                        endDate);
+
         Set<LocalDate> checkInDates = checkInHistoryEntities.stream()
                 .map(CheckInHistoryEntity::getCheckInDate)
                 .collect(Collectors.toSet());
