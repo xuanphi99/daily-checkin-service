@@ -41,7 +41,7 @@ public class UserController {
     }
 
     @PostMapping
-    public ResponseEntity<UserDto> createUser(@RequestPart("user") String userJson,
+    public  ResponseEntity<?>  createUser(@RequestPart("user") String userJson,
                                               @RequestPart(value = "avatar" ,required = false) MultipartFile avatar,
                                               @RequestHeader(value = "Accept-Language", defaultValue = "vi") String lang) throws Exception {
         UserDto userDto = objectMapper.readValue(userJson, UserDto.class);
@@ -50,7 +50,8 @@ public class UserController {
         if (avatar != null && !avatar.isEmpty()) {
             String contentType = avatar.getContentType();
             if (contentType == null || !contentType.startsWith("image/")) {
-                throw new Exception(messageSource.getMessage(LocaleKey.FILE_AVATAR_INVALID,null,locale));
+                String message = messageSource.getMessage(LocaleKey.FILE_AVATAR_INVALID,null,locale);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(message);
             }
             byte[] avatarBytes = avatar.getBytes();
             userDto.setAvatar(avatarBytes);
