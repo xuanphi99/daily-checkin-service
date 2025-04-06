@@ -101,7 +101,7 @@ public class UserService {
 
                     HashMap<Integer, Integer> rewardConfigs = rewardConfigService.findAllConfig();
 
-                    if (turnInMonth.size() > rewardConfigs.size()) {
+                    if (turnInMonth.size() >= rewardConfigs.size()) {
                         throw new RuntimeException(messageSource.getMessage(LocaleKey.USER_EXCEEDED_CHECK_INS, null, locale));
                     }
                     userEntity.setLotusPoints(userEntity.getLotusPoints() +

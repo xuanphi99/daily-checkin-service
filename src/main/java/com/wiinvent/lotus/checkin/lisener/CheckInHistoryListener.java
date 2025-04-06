@@ -1,9 +1,11 @@
 package com.wiinvent.lotus.checkin.lisener;
 
 import com.wiinvent.lotus.checkin.config.RedissonInstanceHolder;
+import com.wiinvent.lotus.checkin.dto.PaginationRequest;
 import com.wiinvent.lotus.checkin.entity.CheckInHistoryEntity;
 import com.wiinvent.lotus.checkin.util.ReasonCheckInEnum;
 import org.redisson.api.RBucket;
+import org.redisson.api.RKeys;
 import org.redisson.api.RedissonClient;
 
 import javax.persistence.PostPersist;
@@ -37,6 +39,23 @@ public class CheckInHistoryListener {
         bucket.set(checkInHistoryEntities);
 
         bucket.expire(getEndOfDayExpiry());
+
+        // update cache history
+        RBucket<String> keyPage = redissonClient.getBucket(PaginationRequest.buildCacheKey(userId));
+        if(keyPage.isExists()){
+            String page = keyPage.get();
+            RKeys rKeys = redissonClient.getKeys();
+            Iterable<String> keys = rKeys.getKeys();
+            keys.forEach(key -> {
+                if(key.contains("pagination")) {
+                    RBucket<Object> removeBucket = redissonClient.getBucket(PaginationRequest.buildCacheKey(userId)+ page);
+                    removeBucket.delete();
+
+                }
+            });
+        }
+
+
     }
 
     private Instant getEndOfDayExpiry() {
