@@ -17,21 +17,22 @@ import java.util.stream.Collectors;
 @Service
 public class CheckInHistoryService {
     private final CheckInHistoryRepository checkInHistoryRepository;
-
     private final CheckInHistoryMapper mapper;
 
-    public CheckInHistoryService(CheckInHistoryRepository checkInHistoryRepository, CheckInHistoryMapper mapper) {
+    public CheckInHistoryService(CheckInHistoryRepository checkInHistoryRepository,
+                                 CheckInHistoryMapper mapper) {
         this.checkInHistoryRepository = checkInHistoryRepository;
         this.mapper = mapper;
     }
 
     public Page<CheckInHistoryDto> getCheckInHistory(long userId, int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
+
         Page<CheckInHistoryEntity> entityPage = checkInHistoryRepository
                 .findByUserIdAndReason(userId, ReasonCheckInEnum.check_in.name(), pageable);
 
         List<CheckInHistoryDto> dtoList = entityPage.stream().map(mapper::toDto)
                 .collect(Collectors.toList());
-        return new PageImpl<>(dtoList, pageable, entityPage.getTotalElements());
+            return new PageImpl<>(dtoList, pageable, entityPage.getTotalElements());
     }
 }

@@ -16,4 +16,5 @@ public class CheckInHistoryDto {
     private LocalDate checkInDate;
     private int amount;
     private String reason;
+    private long id;
 }
