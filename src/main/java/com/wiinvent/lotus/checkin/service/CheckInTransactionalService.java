@@ -1,5 +1,6 @@
 package com.wiinvent.lotus.checkin.service;
 
+import com.wiinvent.lotus.checkin.dto.CheckInWrapper;
 import com.wiinvent.lotus.checkin.entity.CheckInHistoryEntity;
 import com.wiinvent.lotus.checkin.entity.UserEntity;
 import com.wiinvent.lotus.checkin.repository.CheckInHistoryRepository;
@@ -14,24 +15,24 @@ import java.util.HashMap;
 import java.util.List;
 
 @Service
-public class CheckInService {
+public class CheckInTransactionalService {
     private final UserRepository userRepository;
     private final CheckInHistoryRepository checkInHistoryRepository;
 
-    public CheckInService(UserRepository userRepository,
-                          CheckInHistoryRepository checkInHistoryRepository) {
+    public CheckInTransactionalService(UserRepository userRepository,
+                                       CheckInHistoryRepository checkInHistoryRepository) {
         this.userRepository = userRepository;
         this.checkInHistoryRepository = checkInHistoryRepository;
     }
 
     @Transactional(isolation = Isolation.SERIALIZABLE, rollbackFor = Exception.class)
-    public UserEntity upgradeUserCheckIn(long userId, UserEntity userEntity,
+    public CheckInWrapper upgradeUserCheckIn(long userId, UserEntity userEntity,
                                    HashMap<Integer, Integer> rewardConfigs,
                                    List<CheckInHistoryEntity> turnInMonth,
                                    LocalDate dateCheckIn) {
         userEntity.setLotusPoints(userEntity.getLotusPoints() +
                 rewardConfigs.getOrDefault(turnInMonth.size() + 1, 0));
-        userRepository.save(userEntity);
+        UserEntity user =  userRepository.save(userEntity);
 
         CheckInHistoryEntity checkInHistoryEntity = new CheckInHistoryEntity();
         checkInHistoryEntity.setUserId(userId);
@@ -40,6 +41,9 @@ public class CheckInService {
         checkInHistoryEntity.setReason(ReasonCheckInEnum.check_in.name());
         checkInHistoryRepository.save(checkInHistoryEntity);
 
-        return userEntity;
+        return CheckInWrapper.builder()
+                .checkInHistoryEntity(checkInHistoryEntity)
+                .userEntity(user)
+                .build();
     }
 }

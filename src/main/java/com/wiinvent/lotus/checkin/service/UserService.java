@@ -1,8 +1,7 @@
 package com.wiinvent.lotus.checkin.service;
 
-import com.wiinvent.lotus.checkin.dto.CheckInHistoryDto;
-import com.wiinvent.lotus.checkin.dto.CheckInStatus;
-import com.wiinvent.lotus.checkin.dto.UserDto;
+import com.wiinvent.lotus.checkin.config.LiquibaseChecksumClearConfig;
+import com.wiinvent.lotus.checkin.dto.*;
 import com.wiinvent.lotus.checkin.entity.CheckInHistoryEntity;
 import com.wiinvent.lotus.checkin.entity.UserEntity;
 import com.wiinvent.lotus.checkin.mapper.UserMapper;
@@ -13,20 +12,24 @@ import com.wiinvent.lotus.checkin.util.CheckInValidateHelper;
 import com.wiinvent.lotus.checkin.util.LocaleKey;
 import com.wiinvent.lotus.checkin.util.ReasonCheckInEnum;
 import org.redisson.api.RBucket;
+import org.redisson.api.RKeys;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.MessageSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import javax.persistence.EntityNotFoundException;
 import java.time.LocalDate;
 import java.time.temporal.TemporalAdjusters;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -38,16 +41,17 @@ public class UserService {
     private final RedissonClient redissonClient;
     private final CheckInValidateHelper checkInValidateHelper;
     private final CheckInHistoryRepository checkInHistoryRepository;
-    private final CheckInService checkInService;
 
     private final RewardConfigService rewardConfigService;
+
+    private final Logger logger = LoggerFactory.getLogger(UserService.class);
 
     public UserService(UserRepository userRepository,
                        UserMapper userMapper,
                        MessageSource messageSource,
                        RedissonClient redissonClient,
                        CheckInValidateHelper checkInValidateHelper,
-                       CheckInHistoryRepository checkInHistoryRepository, CheckInService checkInService,
+                       CheckInHistoryRepository checkInHistoryRepository,
                        RewardConfigService rewardConfigService) {
         this.userRepository = userRepository;
         this.userMapper = userMapper;
@@ -55,9 +59,9 @@ public class UserService {
         this.redissonClient = redissonClient;
         this.checkInValidateHelper = checkInValidateHelper;
         this.checkInHistoryRepository = checkInHistoryRepository;
-        this.checkInService = checkInService;
         this.rewardConfigService = rewardConfigService;
     }
+
     @Transactional
     public UserDto createUser(UserDto userDto) {
 
@@ -91,10 +95,10 @@ public class UserService {
         RLock lock = redissonClient.getLock("checkInLock:" + userId);
 
         try {
-            if (lock.tryLock(5,10, TimeUnit.SECONDS)) {
+            if (lock.tryLock(5, 10, TimeUnit.SECONDS)) {
                 try {
 
-                    UserEntity userEntity = getUserEntity(userId,locale);
+                    UserEntity userEntity = getUserEntity(userId, locale);
 
                     List<CheckInHistoryEntity> turnInMonth = getCheckInByDateRange(userId,
                             dateCheckIn.withDayOfMonth(1),
@@ -106,20 +110,44 @@ public class UserService {
                     if (turnInMonth.size() >= rewardConfigs.size()) {
                         throw new RuntimeException(messageSource.getMessage(LocaleKey.USER_EXCEEDED_CHECK_INS, null, locale));
                     }
-                    UserEntity user = checkInService.upgradeUserCheckIn(userId,userEntity,
-                            rewardConfigs,
-                            turnInMonth,
-                            dateCheckIn);
 
-                    setCacheUserProfile(userBucket,
-                            userMapper.toDto(user));
-                    addCacheCheckInBucket(userId, checkInBucket);
-                }
-                finally {
+
+                    userEntity.setLotusPoints(userEntity.getLotusPoints() +
+                            rewardConfigs.getOrDefault(turnInMonth.size() + 1, 0));
+                    userRepository.save(userEntity);
+
+                    CheckInHistoryEntity checkInHistoryEntity = new CheckInHistoryEntity();
+                    checkInHistoryEntity.setUserId(userId);
+                    checkInHistoryEntity.setAmount(rewardConfigs.getOrDefault(turnInMonth.size() + 1, 0));
+                    checkInHistoryEntity.setCheckInDate(dateCheckIn);
+                    checkInHistoryEntity.setReason(ReasonCheckInEnum.check_in.name());
+                    checkInHistoryRepository.save(checkInHistoryEntity);
+
+                    TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            setCacheUserProfile(userBucket, userMapper.toDto(userEntity));
+                            setCacheCheckInBucket(userId, checkInBucket);
+                            setCacheCheckInHistory(checkInHistoryEntity,
+                                    redissonClient,
+                                    cacheKeyDateRange(userId, dateCheckIn));
+                            updateCacheHistoryPagination(redissonClient, userId);
+                        }
+
+                        @Override
+                        public void afterCompletion(int status) {
+                            if (status == TransactionSynchronization.STATUS_COMMITTED) {
+                                logger.debug("Transaction committed.");
+                            } else if (status == TransactionSynchronization.STATUS_ROLLED_BACK) {
+                                logger.debug("Transaction rolled back.");
+                            }
+                        }
+                    });
+
+                } finally {
                     lock.unlock();
                 }
-            }
-            else {
+            } else {
                 throw new RuntimeException(messageSource.getMessage(LocaleKey.CHECK_IN_LOCK_FAILED, null, locale));
             }
 
@@ -131,14 +159,19 @@ public class UserService {
 
     }
 
+    private String cacheKeyDateRange(long userId, LocalDate checkInDate) {
+        return String.format("checkInRange:%d:%s:%s:%s",
+                userId, ReasonCheckInEnum.check_in.name(),
+                checkInDate.withDayOfMonth(1),
+                checkInDate.with(TemporalAdjusters.lastDayOfMonth()));
+
+    }
+
 
     private List<CheckInHistoryEntity> getCheckInByDateRange(long userId,
                                                              LocalDate startDate,
-                                                             LocalDate endDate,String reason) {
-        String cacheKeyDateRange = String.format("checkInRange:%d:%s:%s:%s",
-                userId, ReasonCheckInEnum.check_in.name(),
-                startDate,
-                endDate);
+                                                             LocalDate endDate, String reason) {
+        String cacheKeyDateRange = cacheKeyDateRange(userId, startDate);
 
         RBucket<List<CheckInHistoryEntity>> bucket = redissonClient.getBucket(cacheKeyDateRange);
 
@@ -161,8 +194,8 @@ public class UserService {
             throw new Exception(messageSource.getMessage(LocaleKey.INVALID_CHECK_IN_TIME, null, locale));
         }
         if (checkInBucket.isExists() || checkInHistoryRepository.findByUserIdAndCheckInDate(userId, dateCheckIn).isPresent()) {
-            if(!checkInBucket.isExists()){
-                addCacheCheckInBucket(userId, checkInBucket);
+            if (!checkInBucket.isExists()) {
+                setCacheCheckInBucket(userId, checkInBucket);
             }
             throw new Exception(messageSource.getMessage(LocaleKey.CHECK_IN_ALREADY_MARKED_TODAY, null, locale));
         }
@@ -182,15 +215,16 @@ public class UserService {
 
         return IntStream.range(0, Math.max(checkInCount, rewardCount))
                 .mapToObj(i -> CheckInStatus.builder()
-                        .day(i)
+                        .day(i+1)
                         .isCheckedIn(i < checkInCount)
                         .build())
                 .collect(Collectors.toList());
 
     }
+
     @Transactional
     public void subtractPoints(long userId, CheckInHistoryDto checkInHistoryDto, Locale locale) {
-        UserEntity userEntity = getUserEntity(userId,locale);
+        UserEntity userEntity = getUserEntity(userId, locale);
 
         userEntity.setLotusPoints(userEntity.getLotusPoints() + checkInHistoryDto.getAmount());
         userRepository.save(userEntity);
@@ -202,12 +236,12 @@ public class UserService {
         checkInHistoryEntity.setUserId(userId);
         checkInHistoryEntity.setAmount(checkInHistoryDto.getAmount());
         checkInHistoryEntity.setCheckInDate(checkInHistoryDto.getCheckInDate() != null ?
-                checkInHistoryDto.getCheckInDate() : LocalDate.now());
+                checkInHistoryDto.getCheckInDate() : java.time.LocalDate.now());
         checkInHistoryEntity.setReason(ReasonCheckInEnum.deducted.name());
         checkInHistoryRepository.save(checkInHistoryEntity);
     }
 
-    private void addCacheCheckInBucket(long userId, RBucket<String> checkInBucket) {
+    private void setCacheCheckInBucket(long userId, RBucket<String> checkInBucket) {
         checkInBucket.set(CacheKeys.USER_CHECK_IN.buildKey(userId));
         checkInBucket.expire(checkInValidateHelper.getExpiryTime().toInstant());
     }
@@ -221,4 +255,33 @@ public class UserService {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new EntityNotFoundException(messageSource.getMessage(LocaleKey.USER_NOT_FOUND, null, locale)));
     }
+
+    private void setCacheCheckInHistory(CheckInHistoryEntity entity, RedissonClient redissonClient, String cacheKeyDateRange) {
+        RBucket<List<CheckInHistoryEntity>> bucket = redissonClient.getBucket(cacheKeyDateRange);
+
+        List<CheckInHistoryEntity> checkInHistoryEntities = Optional.ofNullable(bucket.get()).orElse(new ArrayList<>());
+
+        checkInHistoryEntities.add(entity);
+
+        bucket.set(checkInHistoryEntities);
+
+        bucket.expire(checkInValidateHelper.getExpiryTime().toInstant());
+    }
+
+    private static void updateCacheHistoryPagination(RedissonClient redissonClient, long userId) {
+        RBucket<String> keyPage = redissonClient.getBucket(PaginationRequest.buildCacheKey(userId));
+        if (keyPage.isExists()) {
+            String page = keyPage.get();
+            RKeys rKeys = redissonClient.getKeys();
+            Iterable<String> keys = rKeys.getKeys();
+            keys.forEach(key -> {
+                if (key.contains("pagination")) {
+                    RBucket<Object> removeBucket = redissonClient.getBucket(PaginationRequest.buildCacheKey(userId) + page);
+                    removeBucket.delete();
+                }
+            });
+        }
+    }
+
+
 }
