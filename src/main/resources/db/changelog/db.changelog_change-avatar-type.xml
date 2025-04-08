@@ -3,12 +3,20 @@
         xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
-        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+                        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
     <changeSet id="20250406-01-change-avatar-to-longblob" author="phidx">
+        <preConditions onFail="CONTINUE" onError="CONTINUE">
+            <and>
+                <tableExists tableName="user"/>
+                <columnExists tableName="user" columnName="avatar"/>
+            </and>
+        </preConditions>
         <modifyDataType
                 tableName="user"
                 columnName="avatar"
                 newDataType="LONGBLOB"/>
         <comment>Change avatar column to LONGBLOB to support larger image data</comment>
     </changeSet>
+
 </databaseChangeLog>
