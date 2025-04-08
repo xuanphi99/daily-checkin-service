@@ -25,7 +25,7 @@ public class CheckInTransactionalService {
         this.checkInHistoryRepository = checkInHistoryRepository;
     }
 
-    @Transactional(isolation = Isolation.SERIALIZABLE, rollbackFor = Exception.class)
+    @Transactional(isolation = Isolation.SERIALIZABLE)
     public CheckInWrapper upgradeUserCheckIn(long userId, UserEntity userEntity,
                                    HashMap<Integer, Integer> rewardConfigs,
                                    List<CheckInHistoryEntity> turnInMonth,

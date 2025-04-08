@@ -21,6 +21,7 @@ import org.springframework.context.MessageSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -85,7 +86,7 @@ public class UserService {
         String message = messageSource.getMessage(LocaleKey.USER_NOT_FOUND, null, locale);
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(message);
     }
-
+    @Transactional(isolation = Isolation.SERIALIZABLE, rollbackFor = Exception.class)
     public void checkInByUserId(long userId, Locale locale) throws Exception {
         LocalDate dateCheckIn = LocalDate.now();
         RBucket<String> checkInBucket = redissonClient.getBucket(CacheKeys.USER_CHECK_IN.buildKey(userId));
