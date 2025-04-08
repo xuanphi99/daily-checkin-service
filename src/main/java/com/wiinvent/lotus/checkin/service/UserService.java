@@ -208,13 +208,12 @@ public class UserService {
         HashMap<Integer, Integer> rewardConfigs = rewardConfigService.findAllConfig();
 
         List<CheckInHistoryEntity> checkInHistoryEntities =
-                checkInHistoryRepository.findByUserIdAndReasonAndCheckInDateGreaterThanEqualAndCheckInDateLessThanEqual(
-                        userId, ReasonCheckInEnum.check_in.name(), startDate, endDate);
+                getCheckInByDateRange(userId, startDate, endDate, ReasonCheckInEnum.check_in.name());
 
         int checkInCount = checkInHistoryEntities.size();
         int rewardCount = rewardConfigs.size();
 
-        return IntStream.range(0, Math.max(checkInCount, rewardCount))
+        return IntStream.range(0, rewardCount)
                 .mapToObj(i -> CheckInStatus.builder()
                         .day(i+1)
                         .isCheckedIn(i < checkInCount)
