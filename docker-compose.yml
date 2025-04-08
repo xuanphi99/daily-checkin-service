@@ -1,0 +1,33 @@
+version: '3.3'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: lotus-mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_DATABASE: lotus_checkin
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    networks:
+      - lotus-net
+
+  redis:
+    image: redis:latest
+    container_name: lotus-redis
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--maxmemory", "4gb", "--maxmemory-policy", "allkeys-lru"]
+    networks:
+      - lotus-net
+
+
+volumes:
+  mysql-data: {}
+
+networks:
+  lotus-net: {}
