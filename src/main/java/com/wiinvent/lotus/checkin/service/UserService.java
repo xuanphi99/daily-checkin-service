@@ -1,6 +1,7 @@
 package com.wiinvent.lotus.checkin.service;
 
 import com.wiinvent.lotus.checkin.dto.CheckInHistoryDto;
+import com.wiinvent.lotus.checkin.dto.CheckInStatus;
 import com.wiinvent.lotus.checkin.dto.UserDto;
 import com.wiinvent.lotus.checkin.entity.CheckInHistoryEntity;
 import com.wiinvent.lotus.checkin.entity.UserEntity;
@@ -18,17 +19,16 @@ import org.springframework.context.MessageSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.persistence.EntityNotFoundException;
 import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAdjusters;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
+import java.util.stream.IntStream;
 
 @Service
 public class UserService {
@@ -38,6 +38,7 @@ public class UserService {
     private final RedissonClient redissonClient;
     private final CheckInValidateHelper checkInValidateHelper;
     private final CheckInHistoryRepository checkInHistoryRepository;
+    private final CheckInService checkInService;
 
     private final RewardConfigService rewardConfigService;
 
@@ -46,7 +47,7 @@ public class UserService {
                        MessageSource messageSource,
                        RedissonClient redissonClient,
                        CheckInValidateHelper checkInValidateHelper,
-                       CheckInHistoryRepository checkInHistoryRepository,
+                       CheckInHistoryRepository checkInHistoryRepository, CheckInService checkInService,
                        RewardConfigService rewardConfigService) {
         this.userRepository = userRepository;
         this.userMapper = userMapper;
@@ -54,6 +55,7 @@ public class UserService {
         this.redissonClient = redissonClient;
         this.checkInValidateHelper = checkInValidateHelper;
         this.checkInHistoryRepository = checkInHistoryRepository;
+        this.checkInService = checkInService;
         this.rewardConfigService = rewardConfigService;
     }
     @Transactional
@@ -80,10 +82,10 @@ public class UserService {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(message);
     }
 
-    @Transactional(isolation = Isolation.SERIALIZABLE, rollbackFor = Exception.class)
     public void checkInByUserId(long userId, Locale locale) throws Exception {
         LocalDate dateCheckIn = LocalDate.now();
         RBucket<String> checkInBucket = redissonClient.getBucket(CacheKeys.USER_CHECK_IN.buildKey(userId));
+        RBucket<UserDto> userBucket = redissonClient.getBucket(CacheKeys.USER_PROFILE.buildKey(userId));
 
         validateCheckIn(userId, locale, dateCheckIn, checkInBucket);
         RLock lock = redissonClient.getLock("checkInLock:" + userId);
@@ -104,19 +106,13 @@ public class UserService {
                     if (turnInMonth.size() >= rewardConfigs.size()) {
                         throw new RuntimeException(messageSource.getMessage(LocaleKey.USER_EXCEEDED_CHECK_INS, null, locale));
                     }
-                    userEntity.setLotusPoints(userEntity.getLotusPoints() +
-                            rewardConfigs.getOrDefault(turnInMonth.size() + 1, 0));
-                    userRepository.save(userEntity);
-                    setCacheUserProfile(redissonClient.getBucket(CacheKeys.USER_PROFILE.buildKey(userId)),
-                            userMapper.toDto(userEntity));
+                    UserEntity user = checkInService.upgradeUserCheckIn(userId,userEntity,
+                            rewardConfigs,
+                            turnInMonth,
+                            dateCheckIn);
 
-                    CheckInHistoryEntity checkInHistoryEntity = new CheckInHistoryEntity();
-                    checkInHistoryEntity.setUserId(userId);
-                    checkInHistoryEntity.setAmount(rewardConfigs.getOrDefault(turnInMonth.size() + 1, 0));
-                    checkInHistoryEntity.setCheckInDate(dateCheckIn);
-                    checkInHistoryEntity.setReason(ReasonCheckInEnum.check_in.name());
-                    checkInHistoryRepository.save(checkInHistoryEntity);
-
+                    setCacheUserProfile(userBucket,
+                            userMapper.toDto(user));
                     addCacheCheckInBucket(userId, checkInBucket);
                 }
                 finally {
@@ -128,11 +124,13 @@ public class UserService {
             }
 
         } catch (Exception e) {
+            userBucket.delete();
             checkInBucket.delete();
             throw e;
         }
 
     }
+
 
     private List<CheckInHistoryEntity> getCheckInByDateRange(long userId,
                                                              LocalDate startDate,
@@ -170,22 +168,22 @@ public class UserService {
         }
     }
 
-    public List<CheckInHistoryDto> getCheckInStatusById(long userId, LocalDate startDate,
-                                                        LocalDate endDate) {
+    public List<CheckInStatus> getCheckInStatusById(long userId) {
+        LocalDate startDate = LocalDate.now().withDayOfMonth(1);
+        LocalDate endDate = LocalDate.now().with(TemporalAdjusters.lastDayOfMonth());
+        HashMap<Integer, Integer> rewardConfigs = rewardConfigService.findAllConfig();
 
         List<CheckInHistoryEntity> checkInHistoryEntities =
-                checkInHistoryRepository
-                        .findByUserIdAndReasonAndCheckInDateGreaterThanEqualAndCheckInDateLessThanEqual(
-                                userId, ReasonCheckInEnum.check_in.name(), startDate, endDate);
-        Set<LocalDate> checkInDates = checkInHistoryEntities.stream()
-                .map(CheckInHistoryEntity::getCheckInDate)
-                .collect(Collectors.toSet());
+                checkInHistoryRepository.findByUserIdAndReasonAndCheckInDateGreaterThanEqualAndCheckInDateLessThanEqual(
+                        userId, ReasonCheckInEnum.check_in.name(), startDate, endDate);
 
-        return Stream.iterate(startDate, date -> date.plusDays(1))
-                .limit(ChronoUnit.DAYS.between(startDate, endDate) + 1)
-                .map(currentDate -> CheckInHistoryDto.builder()
-                        .checkInDate(currentDate)
-                        .isCheckedIn(checkInDates.contains(currentDate))
+        int checkInCount = checkInHistoryEntities.size();
+        int rewardCount = rewardConfigs.size();
+
+        return IntStream.range(0, Math.max(checkInCount, rewardCount))
+                .mapToObj(i -> CheckInStatus.builder()
+                        .day(i)
+                        .isCheckedIn(i < checkInCount)
                         .build())
                 .collect(Collectors.toList());
 

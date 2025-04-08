@@ -2,6 +2,7 @@ package com.wiinvent.lotus.checkin.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wiinvent.lotus.checkin.dto.CheckInHistoryDto;
+import com.wiinvent.lotus.checkin.dto.CheckInStatus;
 import com.wiinvent.lotus.checkin.dto.UserDto;
 import com.wiinvent.lotus.checkin.service.CheckInHistoryService;
 import com.wiinvent.lotus.checkin.service.UserService;
@@ -81,10 +82,8 @@ public class UserController {
     }
 
     @GetMapping("/check-in-status/{userId}")
-    public List<CheckInHistoryDto> getCheckInStatus(@PathVariable long userId,
-                                                    @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate startDate,
-                                                    @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate endDate) {
-        return userService.getCheckInStatusById(userId, startDate, endDate);
+    public List<CheckInStatus> getCheckInStatus(@PathVariable long userId) {
+        return userService.getCheckInStatusById(userId);
     }
 
     @GetMapping("/{userId}/history")
